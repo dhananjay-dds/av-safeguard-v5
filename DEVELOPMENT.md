@@ -27,7 +27,7 @@ Recommended extensions:
 
 - ESLint
 - Prettier - Code formatter
-- TypeScript Vue Plugin (Volar)
+- ES7+ React/Redux/React-Native snippets
 - Tailwind CSS IntelliSense
 - Thunder Client (for API testing)
 

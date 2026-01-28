@@ -35,6 +35,7 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "resolvePackageJsonExports": true,
     "resolvePackageJsonImports": true
   },

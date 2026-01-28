@@ -74,11 +74,11 @@ Before you begin, ensure you have the following installed:
 - **Git** - v2.0.0 or higher ([Download](https://git-scm.com/))
 
 **Verify Installation:**
-\\\ash
+```bash
 node --version    # Should be v18+
 npm --version     # Should be v9+
 git --version     # Should be v2+
-\\\
+```
 
 ---
 
@@ -86,29 +86,29 @@ git --version     # Should be v2+
 
 ### 1. Clone the Repository
 
-\\\ash
+```bash
 git clone https://github.com/dhananjay-dds/av-safeguard-v5.git
 cd av-safeguard-v5
-\\\
+```
 
 ### 2. Install Dependencies
 
-\\\ash
+```bash
 npm install
-\\\
+```
 
 ### 3. Set Up Environment Variables
 
-\\\ash
+```bash
 cp .env.example .env.local
-\\\
+```
 
 ### 4. Verify Installation
 
-\\\ash
+```bash
 npm run lint
 npm test
-\\\
+```
 
 ---
 
@@ -116,15 +116,15 @@ npm test
 
 ### Start Development Server
 
-\\\ash
+```bash
 npm run dev
-\\\
+```
 
-Available at \http://localhost:5173\
+Available at `http://localhost:5173`
 
 ### Available Commands
 
-\\\ash
+```bash
 npm run dev           # Start dev server
 npm run build         # Build for production
 npm run build:dev    # Build for development
@@ -132,7 +132,7 @@ npm run lint         # Run ESLint
 npm run preview      # Preview production build
 npm test             # Run tests
 npm run test:watch   # Watch mode
-\\\
+```
 
 ---
 
@@ -140,36 +140,36 @@ npm run test:watch   # Watch mode
 
 ### Build for Production
 
-\\\ash
+```bash
 npm run build
-\\\
+```
 
 ### Preview Build
 
-\\\ash
+```bash
 npm run preview
-\\\
+```
 
 ### Deploy to Vercel
 
-\\\ash
+```bash
 git push origin main
-\\\
+```
 
 ---
 
 ##  Testing
 
-\\\ash
+```bash
 npm test                 # Run tests once
 npm run test:watch      # Watch mode
-\\\
+```
 
 ---
 
 ##  Project Structure
 
-\\\
+```
 src/
  components/        # React components
     ui/           # Shadcn UI components
@@ -181,7 +181,7 @@ src/
  utils/            # Helper functions
  test/             # Tests
  App.tsx          # Root component
-\\\
+```
 
 ---
 

@@ -44,10 +44,10 @@ test.describe("AV Safeguard Application", () => {
   test("should update screen configuration", async ({ page }) => {
     // Click on screen tab
     await page.getByRole("tab", { name: /screen/i }).click();
-    await page.waitForTimeout(300);
 
     // Update screen size
     const screenSizeInput = page.locator('input[id="screen-size"]');
+    await expect(screenSizeInput).toBeVisible();
     await screenSizeInput.fill("150");
     await expect(screenSizeInput).toHaveValue("150");
 
@@ -63,18 +63,19 @@ test.describe("AV Safeguard Application", () => {
   test("should add seating rows", async ({ page }) => {
     // Click on seating tab
     await page.getByRole("tab", { name: /seating/i }).click();
-    await page.waitForTimeout(300);
 
     // Get initial row count
     const addButton = page.getByRole("button", { name: /add row/i });
     await expect(addButton).toBeVisible();
 
     // Add a new row
+    const numberInputs = page.locator("input[type='number']");
+    const initialInputCount = await numberInputs.count();
     await addButton.click();
-    await page.waitForTimeout(300);
+    await expect.poll(async () => numberInputs.count()).toBeGreaterThan(initialInputCount);
 
     // Verify new inputs appear
-    const inputs = await page.locator("input[type='number']").count();
+    const inputs = await numberInputs.count();
     expect(inputs).toBeGreaterThan(3); // Should have more than initial 3 inputs
   });
 
@@ -93,9 +94,6 @@ test.describe("AV Safeguard Application", () => {
   });
 
   test("should display analysis results", async ({ page }) => {
-    // Wait for results to appear
-    await page.waitForTimeout(500);
-
     // Check for certification badge
     const certBadge = page.locator("text=/Certification|Rating/");
     await expect(certBadge.first()).toBeVisible();
@@ -118,9 +116,6 @@ test.describe("AV Safeguard Application", () => {
     await lengthInput.fill("0");
     
     // The app should handle this gracefully
-    // Wait a moment for validation
-    await page.waitForTimeout(500);
-    
     // App should still be functional
     await expect(page.getByText("AV SAFEGUARD")).toBeVisible();
   });
@@ -132,11 +127,11 @@ test.describe("AV Safeguard Application", () => {
 
     // Switch tabs
     await page.getByRole("tab", { name: /screen/i }).click();
-    await page.waitForTimeout(300);
+    await expect(page.locator('input[id="screen-size"]')).toBeVisible();
 
     // Switch back
     await page.getByRole("tab", { name: /room/i }).click();
-    await page.waitForTimeout(300);
+    await expect(lengthInput).toBeVisible();
 
     // Value should still be there
     await expect(lengthInput).toHaveValue("22");
@@ -144,7 +139,7 @@ test.describe("AV Safeguard Application", () => {
 
   test("should be accessible", async ({ page }) => {
     // Check for proper labels
-    const labels = await page.getByRole("label").count();
+    const labels = await page.locator("label").count();
     expect(labels).toBeGreaterThan(0);
 
     // Check for buttons

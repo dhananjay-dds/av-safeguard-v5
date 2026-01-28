@@ -31,7 +31,7 @@ jobs:
         run: npm run lint
 
       - name: Type check
-        run: npm run type-check || true
+        run: npm run type-check
 
       - name: Run tests
         run: npm test
@@ -76,16 +76,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run npm audit
-        run: npm audit --production || true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: npm
 
-      - name: Check for vulnerabilities
-        run: npm audit fix --dry-run || true
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (high/critical)
+        run: npm audit --audit-level=high
+
+      - name: Check for vulnerabilities (high/critical)
+        run: npm audit --omit=dev --audit-level=high
 
   deploy:
     runs-on: ubuntu-latest
     name: Deploy to Vercel
-    needs: [quality, e2e]
+    needs: [quality, e2e, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
