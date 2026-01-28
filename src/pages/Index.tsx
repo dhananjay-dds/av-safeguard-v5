@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
   Monitor,
   Ruler,
@@ -31,19 +31,13 @@ import {
 } from "@/types/avTypes";
 import { analyzeProject } from "@/utils/calculations";
 import { generatePDFReport } from "@/utils/pdfGenerator";
-import { useToast } from "@/hooks/use-toast";
 
 const defaultRows: SeatingRow[] = [
   { id: 1, distFromScreen: 11, earHeight: 42, riserHeight: 0 },
   { id: 2, distFromScreen: 15, earHeight: 42, riserHeight: 10 },
 ];
 
-/**
- * Main application page for AV Safeguard project analysis
- * Provides UI for configuring room, screen, and seating parameters
- */
 const Index = () => {
-  const { toast } = useToast();
   const [roomLength, setRoomLength] = useState(20);
   const [roomWidth, setRoomWidth] = useState(14);
   const [roomHeight, setRoomHeight] = useState(9);
@@ -66,55 +60,11 @@ const Index = () => {
     [roomLength, roomWidth, roomHeight, screenSize, aspectRatio, bottomEdgeHeight, maskingConfig, rows, wallConstruction, contentStandard]
   );
 
-  const analysis = useMemo(() => {
-    try {
-      return analyzeProject(config);
-    } catch (error) {
-      console.error("Analysis error:", error);
-      toast({
-        title: "Analysis Error",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
-      return null;
-    }
-  }, [config, toast]);
+  const analysis = useMemo(() => analyzeProject(config), [config]);
 
-  const handleExportPDF = useCallback(() => {
-    try {
-      if (!analysis) {
-        toast({
-          title: "Export Error",
-          description: "Cannot export: Analysis failed",
-          variant: "destructive",
-        });
-        return;
-      }
-      generatePDFReport(config, analysis);
-      toast({
-        title: "Success",
-        description: "PDF report exported successfully",
-      });
-    } catch (error) {
-      console.error("PDF export error:", error);
-      toast({
-        title: "Export Failed",
-        description: error instanceof Error ? error.message : "Failed to export PDF",
-        variant: "destructive",
-      });
-    }
-  }, [config, analysis, toast]);
-
-  if (!analysis) {
-    return (
-      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-semibold">Unable to load analysis</p>
-          <p className="text-sm text-muted-foreground">Please refresh the page</p>
-        </div>
-      </div>
-    );
-  }
+  const handleExportPDF = () => {
+    generatePDFReport(config, analysis);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -128,204 +78,276 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold header-gradient">AV SAFEGUARD</h1>
-                <p className="text-xs text-muted-foreground">Acoustic Analysis System</p>
+                <p className="text-xs text-muted-foreground font-mono">
+                  V5 • CEDIA/CTA-CEB23 Physics Engine
+                </p>
               </div>
             </div>
-            <Button
-              onClick={handleExportPDF}
-              variant="default"
-              className="gap-2"
-              aria-label="Export project analysis as PDF report"
-            >
+            <Button onClick={handleExportPDF} className="gap-2">
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Export Report</span>
+              Export Report
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 lg:grid-cols-3">
+      <main className="container mx-auto px-4 py-6">
+        {/* Certification Badge */}
+        <div className="mb-6 slide-up">
+          <CertificationBadge
+            certification={analysis.certification}
+            score={analysis.overallScore}
+          />
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
           {/* Left Panel - Configuration */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-1 space-y-6">
             <Tabs defaultValue="room" className="w-full">
-              <TabsList className="grid w-full grid-cols-3" aria-label="Configuration sections">
-                <TabsTrigger value="room" aria-label="Room configuration settings">
-                  <Monitor className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Room</span>
+              <TabsList className="grid w-full grid-cols-3 bg-secondary">
+                <TabsTrigger value="room" className="gap-1.5 text-xs">
+                  <Ruler className="h-3.5 w-3.5" />
+                  Room
                 </TabsTrigger>
-                <TabsTrigger value="screen" aria-label="Screen configuration settings">
-                  <Ruler className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Screen</span>
+                <TabsTrigger value="screen" className="gap-1.5 text-xs">
+                  <Monitor className="h-3.5 w-3.5" />
+                  Screen
                 </TabsTrigger>
-                <TabsTrigger value="seating" aria-label="Seating configuration settings">
-                  <Volume2 className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Seating</span>
+                <TabsTrigger value="acoustics" className="gap-1.5 text-xs">
+                  <Volume2 className="h-3.5 w-3.5" />
+                  Acoustics
                 </TabsTrigger>
               </TabsList>
 
-              {/* Room Tab */}
-              <TabsContent value="room" className="space-y-4">
-                <div className="bg-card p-6 rounded-lg border">
-                  <h2 className="text-lg font-semibold mb-4">Room Dimensions</h2>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="room-length">Length (feet)</Label>
+              <TabsContent value="room" className="card-dashboard p-4 mt-4">
+                <div className="space-y-4">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Settings2 className="h-4 w-4" />
+                    Room Dimensions
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Length (ft)
+                      </Label>
                       <Input
-                        id="room-length"
                         type="number"
-                        min="1"
-                        max="100"
                         value={roomLength}
                         onChange={(e) => setRoomLength(Number(e.target.value))}
-                        aria-describedby="room-length-desc"
+                        className="input-dark font-mono"
+                        min={8}
+                        max={50}
                       />
-                      <p id="room-length-desc" className="text-xs text-muted-foreground">
-                        Room length in feet
-                      </p>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="room-width">Width (feet)</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Width (ft)
+                      </Label>
                       <Input
-                        id="room-width"
                         type="number"
-                        min="1"
-                        max="100"
                         value={roomWidth}
                         onChange={(e) => setRoomWidth(Number(e.target.value))}
-                        aria-describedby="room-width-desc"
+                        className="input-dark font-mono"
+                        min={8}
+                        max={50}
                       />
-                      <p id="room-width-desc" className="text-xs text-muted-foreground">
-                        Room width in feet
-                      </p>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="room-height">Height (feet)</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Height (ft)
+                      </Label>
                       <Input
-                        id="room-height"
                         type="number"
-                        min="1"
-                        max="100"
                         value={roomHeight}
                         onChange={(e) => setRoomHeight(Number(e.target.value))}
-                        aria-describedby="room-height-desc"
+                        className="input-dark font-mono"
+                        min={7}
+                        max={20}
                       />
-                      <p id="room-height-desc" className="text-xs text-muted-foreground">
-                        Room height in feet
-                      </p>
                     </div>
                   </div>
+                </div>
+              </TabsContent>
 
-                  <div className="mt-4 space-y-2">
-                    <Label htmlFor="wall-construction">Wall Construction</Label>
-                    <Select
-                      value={wallConstruction}
-                      onValueChange={(value) =>
-                        setWallConstruction(value as WallConstruction)
-                      }
-                    >
-                      <SelectTrigger id="wall-construction">
+              <TabsContent value="screen" className="card-dashboard p-4 mt-4">
+                <div className="space-y-4">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Monitor className="h-4 w-4" />
+                    Screen Configuration
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Diagonal (in)
+                      </Label>
+                      <Input
+                        type="number"
+                        value={screenSize}
+                        onChange={(e) => setScreenSize(Number(e.target.value))}
+                        className="input-dark font-mono"
+                        min={50}
+                        max={200}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Aspect Ratio
+                      </Label>
+                      <Select value={aspectRatio} onValueChange={(v) => setAspectRatio(v as typeof aspectRatio)}>
+                        <SelectTrigger className="input-dark font-mono">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="16:9">16:9</SelectItem>
+                          <SelectItem value="2.35:1">2.35:1 (Scope)</SelectItem>
+                          <SelectItem value="2.40:1">2.40:1 (Ultra)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Bottom Edge Height (in from floor)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={bottomEdgeHeight}
+                      onChange={(e) => setBottomEdgeHeight(Number(e.target.value))}
+                      className="input-dark font-mono"
+                      min={12}
+                      max={60}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Content Standard
+                    </Label>
+                    <Select value={contentStandard} onValueChange={(v) => setContentStandard(v as ContentStandard)}>
+                      <SelectTrigger className="input-dark font-mono">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="wood">Wood Framing</SelectItem>
-                        <SelectItem value="concrete">Concrete</SelectItem>
-                        <SelectItem value="hybrid">Hybrid</SelectItem>
+                        <SelectItem value="SDR">SDR (45° limit)</SelectItem>
+                        <SelectItem value="HDR">HDR (40° limit)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-              </TabsContent>
-
-              {/* Screen Tab */}
-              <TabsContent value="screen" className="space-y-4">
-                <div className="bg-card p-6 rounded-lg border">
-                  <h2 className="text-lg font-semibold mb-4">Screen Configuration</h2>
-
-                  <div className="grid gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="screen-size">Screen Size (inches)</Label>
-                      <Input
-                        id="screen-size"
-                        type="number"
-                        min="40"
-                        max="600"
-                        step="10"
-                        value={screenSize}
-                        onChange={(e) => setScreenSize(Number(e.target.value))}
-                        aria-describedby="screen-size-desc"
-                      />
-                      <p id="screen-size-desc" className="text-xs text-muted-foreground">
-                        Diagonal screen size in inches
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="aspect-ratio">Aspect Ratio</Label>
-                      <Select
-                        value={aspectRatio}
-                        onValueChange={(value) =>
-                          setAspectRatio(value as typeof aspectRatio)
-                        }
-                      >
-                        <SelectTrigger id="aspect-ratio">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="16:9">16:9 (Standard)</SelectItem>
-                          <SelectItem value="2.35:1">2.35:1 (Scope)</SelectItem>
-                          <SelectItem value="2.40:1">2.40:1 (DCI/4K)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="content-standard">Content Standard</Label>
-                      <Select
-                        value={contentStandard}
-                        onValueChange={(value) =>
-                          setContentStandard(value as ContentStandard)
-                        }
-                      >
-                        <SelectTrigger id="content-standard">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Standard">Standard</SelectItem>
-                          <SelectItem value="4K">4K UHD</SelectItem>
-                          <SelectItem value="HDR">HDR</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Masking Configuration
+                    </Label>
+                    <Select value={maskingConfig} onValueChange={(v) => setMaskingConfig(v as MaskingConfig)}>
+                      <SelectTrigger className="input-dark font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed-240">Fixed 2.40:1 (Standard)</SelectItem>
+                        <SelectItem value="motorized">Motorized Masking (Pro)</SelectItem>
+                        <SelectItem value="16:9-no-masking">16:9 (No Masking)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Masking affects sightline tolerance. No masking = stricter requirements.
+                    </p>
                   </div>
                 </div>
               </TabsContent>
 
-              {/* Seating Tab */}
-              <TabsContent value="seating" className="space-y-4">
-                <div className="bg-card p-6 rounded-lg border">
-                  <h2 className="text-lg font-semibold mb-4">Seating Configuration</h2>
-                  <RowManager rows={rows} setRows={setRows} />
+              <TabsContent value="acoustics" className="card-dashboard p-4 mt-4">
+                <div className="space-y-4">
+                  <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Volume2 className="h-4 w-4" />
+                    Acoustic Properties
+                  </h3>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Wall Construction
+                    </Label>
+                    <Select value={wallConstruction} onValueChange={(v) => setWallConstruction(v as WallConstruction)}>
+                      <SelectTrigger className="input-dark font-mono">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="drywall">Drywall (Standard) - 0.50</SelectItem>
+                        <SelectItem value="treated-drywall">Treated Drywall (Improved) - 0.70</SelectItem>
+                        <SelectItem value="mlv-drywall">MLV + Drywall - 0.75</SelectItem>
+                        <SelectItem value="hybrid">Hybrid (Concrete + Studs) - 0.85</SelectItem>
+                        <SelectItem value="concrete">Concrete (Rigid) - 1.0</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Wall impedance affects bass response and room mode intensity.
+                    Drywall allows bass frequencies to escape, reducing boominess
+                    but causing leakage to adjacent rooms.
+                  </p>
                 </div>
               </TabsContent>
             </Tabs>
+
+            {/* Row Manager */}
+            <div className="card-dashboard p-4">
+              <RowManager rows={rows} onChange={setRows} />
+            </div>
           </div>
 
           {/* Right Panel - Results */}
-          <aside className="space-y-4">
-            <CertificationBadge
-              rating={analysis.acousticRating}
-              isCompliant={analysis.isCompliant}
-            />
-            <RoomModeAnalysis analysis={analysis} />
-            <ResultsGrid analysis={analysis} />
-          </aside>
+          <div className="lg:col-span-2 space-y-6">
+            {/* Row Analysis Grid */}
+            <div className="card-dashboard p-6">
+              <ResultsGrid rows={analysis.rows} />
+            </div>
+
+            {/* Room Mode Analysis */}
+            <div className="card-dashboard p-6">
+              <RoomModeAnalysis
+                modes={analysis.roomModes}
+                wallConstruction={wallConstruction}
+                dampingFactor={analysis.wallDampingFactor}
+                bassLeakage={analysis.bassLeakageWarning}
+                rt60Analysis={analysis.rt60Analysis}
+                treatmentPrescriptions={analysis.treatmentPrescriptions}
+              />
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="card-dashboard p-4 text-center">
+                <div className="text-2xl font-bold font-mono text-primary">
+                  {rows.length}
+                </div>
+                <div className="text-xs text-muted-foreground">Rows</div>
+              </div>
+              <div className="card-dashboard p-4 text-center">
+                <div className="text-2xl font-bold font-mono text-optimal">
+                  {analysis.rows.filter((r) => r.overallStatus === "optimal").length}
+                </div>
+                <div className="text-xs text-muted-foreground">Optimal</div>
+              </div>
+              <div className="card-dashboard p-4 text-center">
+                <div className="text-2xl font-bold font-mono text-warning">
+                  {analysis.rows.filter((r) => r.overallStatus === "warning").length}
+                </div>
+                <div className="text-xs text-muted-foreground">Warnings</div>
+              </div>
+              <div className="card-dashboard p-4 text-center">
+                <div className="text-2xl font-bold font-mono text-fail">
+                  {analysis.rows.filter((r) => r.overallStatus === "fail").length}
+                </div>
+                <div className="text-xs text-muted-foreground">Failures</div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border mt-8 py-4">
+        <div className="container mx-auto px-4 text-center text-xs text-muted-foreground">
+          <p>AV Safeguard V5 • Consultant-Grade Physics Engine</p>
+          <p className="mt-1">CEDIA/CTA-CEB23 Compliant Analysis • Built for Professional Integrators</p>
+        </div>
+      </footer>
     </div>
   );
 };
