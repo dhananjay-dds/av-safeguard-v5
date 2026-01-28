@@ -1,63 +1,83 @@
-import { Shield, Check, AlertTriangle, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Star, AlertTriangle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface CertificationBadgeProps {
-  certification: "CEDIA Compliant" | "Acceptable" | "Requires Revision";
-  score: number;
+  rating: number;
+  isCompliant: boolean;
 }
 
-const certConfig = {
-  "CEDIA Compliant": {
-    icon: Shield,
-    className: "border-optimal bg-optimal/10 text-optimal",
-    description: "Meets all CEDIA/CTA-CEB23 standards",
-  },
-  Acceptable: {
-    icon: Check,
-    className: "border-acceptable bg-acceptable/10 text-acceptable",
-    description: "Minor deviations from optimal specs",
-  },
-  "Requires Revision": {
-    icon: XCircle,
-    className: "border-fail bg-fail/10 text-fail",
-    description: "Critical issues must be addressed",
-  },
-};
-
-export function CertificationBadge({
-  certification,
-  score,
-}: CertificationBadgeProps) {
-  const config = certConfig[certification];
-  const Icon = config.icon;
-
-  const getScoreColor = (s: number) => {
-    if (s >= 90) return "text-optimal";
-    if (s >= 70) return "text-acceptable";
-    if (s >= 50) return "text-warning";
-    return "text-fail";
+/**
+ * Displays certification badge with acoustic rating
+ * Shows compliance status with visual indicators
+ * @component
+ */
+const CertificationBadgeComponent: React.FC<CertificationBadgeProps> = ({
+  rating,
+  isCompliant,
+}) => {
+  const getStatus = (rating: number): string => {
+    if (rating >= 90) return "Excellent";
+    if (rating >= 80) return "Very Good";
+    if (rating >= 70) return "Good";
+    if (rating >= 60) return "Fair";
+    return "Poor";
   };
 
+  const getStatusColor = (rating: number): string => {
+    if (rating >= 90) return "bg-green-100 text-green-800";
+    if (rating >= 80) return "bg-blue-100 text-blue-800";
+    if (rating >= 70) return "bg-yellow-100 text-yellow-800";
+    if (rating >= 60) return "bg-orange-100 text-orange-800";
+    return "bg-red-100 text-red-800";
+  };
+
+  const status = getStatus(rating);
+
   return (
-    <div
-      className={cn(
-        "flex items-center gap-4 p-4 rounded-lg border-2 pulse-glow",
-        config.className
-      )}
+    <Card
+      className="border-2 border-primary/20"
+      role="region"
+      aria-label={`Certification badge: ${status} rating`}
     >
-      <div className="flex-shrink-0">
-        <Icon className="h-10 w-10" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-lg">{certification}</h3>
-        <p className="text-sm opacity-80">{config.description}</p>
-      </div>
-      <div className="text-right">
-        <div className={cn("text-4xl font-bold font-mono", getScoreColor(score))}>
-          {score}
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Certification</span>
+          {isCompliant && <Star className="h-5 w-5 text-yellow-500 fill-current" />}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-center space-y-2">
+          <div
+            className={`text-4xl font-bold ${getStatusColor(rating)} p-4 rounded-lg`}
+            aria-label={`Acoustic rating: ${rating.toFixed(1)}`}
+          >
+            {rating.toFixed(1)}
+          </div>
+          <Badge variant="outline" className="w-full justify-center">
+            {status}
+          </Badge>
         </div>
-        <div className="text-xs uppercase tracking-wider opacity-60">Score</div>
-      </div>
-    </div>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            {isCompliant ? (
+              <>
+                <div className="h-2 w-2 bg-green-500 rounded-full" />
+                <span className="text-green-700">Meets Standards</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <span className="text-yellow-700">Review Needed</span>
+              </>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
-}
+};
+
+export const CertificationBadge = React.memo(CertificationBadgeComponent);
