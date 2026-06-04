@@ -28,6 +28,7 @@ export interface ProjectConfig {
   rows: SeatingRow[];
   wallConstruction: WallConstruction;
   contentStandard: ContentStandard;
+  hardwareSpec?: string;
 }
 
 export interface RowAnalysis {

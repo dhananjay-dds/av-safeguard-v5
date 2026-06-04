@@ -6,8 +6,15 @@ import {
   FileText,
   Settings2,
   Zap,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,6 +55,7 @@ const Index = () => {
   const [rows, setRows] = useState<SeatingRow[]>(defaultRows);
   const [wallConstruction, setWallConstruction] = useState<WallConstruction>("hybrid");
   const [contentStandard, setContentStandard] = useState<ContentStandard>("HDR");
+  const [hardwareSpec, setHardwareSpec] = useState("");
 
   const config: ProjectConfig = useMemo(
     () => ({
@@ -56,14 +64,15 @@ const Index = () => {
       rows,
       wallConstruction,
       contentStandard,
+      hardwareSpec: hardwareSpec || undefined,
     }),
-    [roomLength, roomWidth, roomHeight, screenSize, aspectRatio, bottomEdgeHeight, maskingConfig, rows, wallConstruction, contentStandard]
+    [roomLength, roomWidth, roomHeight, screenSize, aspectRatio, bottomEdgeHeight, maskingConfig, rows, wallConstruction, contentStandard, hardwareSpec]
   );
 
   const analysis = useMemo(() => analyzeProject(config), [config]);
 
-  const handleExportPDF = () => {
-    generatePDFReport(config, analysis);
+  const handleExportPDF = (reportType: "client" | "technical") => {
+    generatePDFReport(config, analysis, reportType);
   };
 
   return (
@@ -83,10 +92,23 @@ const Index = () => {
                 </p>
               </div>
             </div>
-            <Button onClick={handleExportPDF} className="gap-2">
-              <FileText className="h-4 w-4" />
-              Export Report
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Export Report
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportPDF("client")}>
+                  Client Summary (1-Page Risk Report)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPDF("technical")}>
+                  Technical Appendix (Full Engineering Data)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -103,6 +125,20 @@ const Index = () => {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left Panel - Configuration */}
           <div className="lg:col-span-1 space-y-6">
+            <div className="card-dashboard p-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Target Hardware Spec (Optional)
+                </Label>
+                <Input
+                  type="text"
+                  value={hardwareSpec}
+                  onChange={(e) => setHardwareSpec(e.target.value)}
+                  className="input-dark font-mono"
+                  placeholder="e.g., KEF Ci5160RLM-THX Extreme Theater"
+                />
+              </div>
+            </div>
             <Tabs defaultValue="room" className="w-full">
               <TabsList className="grid w-full grid-cols-3 bg-secondary">
                 <TabsTrigger value="room" className="gap-1.5 text-xs">
