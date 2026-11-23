@@ -5,7 +5,8 @@ import {
   calculateVerticalViewingAngle,
   analyzeProject,
 } from "@/utils/calculations";
-import { ProjectConfig, SeatingRow } from "@/types/avTypes";
+import { evaluateClientSummaryRisks } from "@/utils/pdfGenerator";
+import { ProjectConfig } from "@/types/avTypes";
 
 describe("Physics and Scoring Calculations", () => {
   const screen140 = getScreenDimensions(140, "2.40:1");
@@ -30,7 +31,6 @@ describe("Physics and Scoring Calculations", () => {
 
   describe("Vertical Viewing Angle (VVA)", () => {
     it("calculates Row 1 (8 ft) VVA toTop as ~20.5°", () => {
-      // 140" 2.40:1 screen height ~ 53.85", bottom edge 24", viewer ear height 42"
       const vva = calculateVerticalViewingAngle(screen140.height, 24, 42, 8);
       expect(vva.toTop).toBeCloseTo(20.48, 1);
       expect(vva.toTop.toFixed(1)).toBe("20.5");
@@ -56,16 +56,6 @@ describe("Physics and Scoring Calculations", () => {
 
     it("evaluates 16x16x7 test case correctly with failures and Requires Revision badge", () => {
       const result = analyzeProject(testConfig);
-
-      console.log("=== TEST CASE VERIFICATION RESULTS ===");
-      console.log(`Certification: ${result.certification}`);
-      console.log(`Overall Compliance Score: ${result.overallScore}%`);
-      result.rows.forEach((r) => {
-        console.log(`Row ${r.rowId} (${r.distFromScreen} ft): HVA = ${r.horizontalViewingAngle.toFixed(1)}°, VVA = ${r.verticalViewingAngle.toFixed(1)}°, Status = ${r.overallStatus.toUpperCase()}`);
-        r.notes.forEach((n) => console.log(`   - Note: ${n}`));
-      });
-      console.log(`Degenerate Modes Detected: ${result.hasDegenerateModes}`);
-      console.log("=======================================");
 
       // 1. Verify HVA values
       expect(result.rows[0].horizontalViewingAngle.toFixed(1)).toBe("67.9");
@@ -115,6 +105,79 @@ describe("Physics and Scoring Calculations", () => {
       expect(result.overallScore).toBeLessThanOrEqual(50);
       expect(result.overallScore).toBe(25);
       expect(result.certification).toBe("Requires Revision");
+    });
+  });
+
+  describe("Client Summary Risk Card Logic (evaluateClientSummaryRisks)", () => {
+    it("Case A: 20'x14'x9', 110\" 2.40:1 (HDR), Row 1 @ 11 ft triggers ONLY HVA risk, NOT neck strain and NOT wall reframing", () => {
+      const caseAConfig: ProjectConfig = {
+        room: { length: 20, width: 14, height: 9 },
+        screen: {
+          size: 110,
+          aspectRatio: "2.40:1",
+          bottomEdgeHeight: 24,
+          maskingConfig: "fixed-240",
+        },
+        rows: [{ id: 1, distFromScreen: 11, earHeight: 42, riserHeight: 0 }],
+        wallConstruction: "hybrid",
+        contentStandard: "HDR",
+      };
+
+      const analysisA = analyzeProject(caseAConfig);
+
+      // Verify physics values
+      expect(analysisA.rows[0].verticalViewingAngle.toFixed(1)).toBe("10.4");
+      expect(analysisA.rows[0].horizontalViewingAngle.toFixed(1)).toBe("42.1");
+      expect(analysisA.rows[0].vvaPass).toBe(true);
+      expect(analysisA.rows[0].hvaPass).toBe(false);
+      expect(analysisA.hasDegenerateModes).toBe(false);
+
+      // Evaluate Client Summary risk flags
+      const risksA = evaluateClientSummaryRisks(caseAConfig, analysisA);
+
+      expect(risksA.hasHVARisk).toBe(true);
+      expect(risksA.hasVVARisk).toBe(false); // NOT neck strain
+      expect(risksA.hasAcousticRisk).toBe(false); // NOT wall reframing
+      expect(risksA.hasSightlineRisk).toBe(false);
+      expect(risksA.totalRisks).toBe(1);
+    });
+
+    it("Case B: 16'x16'x7', 140\" 2.40:1 (HDR), Row 1 @ 8 ft, Row 2 @ 12 ft triggers Acoustic Boom, Neck Strain, AND Oversized FOV", () => {
+      const caseBConfig: ProjectConfig = {
+        room: { length: 16, width: 16, height: 7 },
+        screen: {
+          size: 140,
+          aspectRatio: "2.40:1",
+          bottomEdgeHeight: 24,
+          maskingConfig: "fixed-240",
+        },
+        rows: [
+          { id: 1, distFromScreen: 8, earHeight: 42, riserHeight: 0 },
+          { id: 2, distFromScreen: 12, earHeight: 42, riserHeight: 10 },
+        ],
+        wallConstruction: "hybrid",
+        contentStandard: "HDR",
+      };
+
+      const analysisB = analyzeProject(caseBConfig);
+
+      // Verify physics values
+      expect(analysisB.rows[0].verticalViewingAngle.toFixed(1)).toBe("20.5");
+      expect(analysisB.rows[0].horizontalViewingAngle.toFixed(1)).toBe("67.9");
+      expect(analysisB.rows[1].horizontalViewingAngle.toFixed(1)).toBe("48.3");
+      expect(analysisB.rows[0].vvaPass).toBe(false);
+      expect(analysisB.rows[0].hvaPass).toBe(false);
+      expect(analysisB.rows[1].hvaPass).toBe(false);
+      expect(analysisB.hasDegenerateModes).toBe(true);
+
+      // Evaluate Client Summary risk flags
+      const risksB = evaluateClientSummaryRisks(caseBConfig, analysisB);
+
+      expect(risksB.hasAcousticRisk).toBe(true); // Acoustic "Boom" (stacked modes)
+      expect(risksB.hasVVARisk).toBe(true); // Neck Strain (VVA)
+      expect(risksB.hasHVARisk).toBe(true); // Oversized Field-of-View (HVA)
+      expect(risksB.hasSightlineRisk).toBe(false);
+      expect(risksB.totalRisks).toBe(3);
     });
   });
 });

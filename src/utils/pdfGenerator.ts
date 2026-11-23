@@ -19,6 +19,43 @@ function getTreatmentLabel(type: TreatmentPrescription["type"]): string {
   }
 }
 
+export function evaluateClientSummaryRisks(
+  config: ProjectConfig,
+  analysis: AnalysisResult
+): {
+  hasAcousticRisk: boolean;
+  hasSightlineRisk: boolean;
+  hasVVARisk: boolean;
+  hasHVARisk: boolean;
+  totalRisks: number;
+} {
+  // Risk 1: Only triggers on degenerate/stacked axial modes or severe modal clustering (not well-proportioned rooms)
+  const hasAcousticRisk = Boolean(analysis.hasDegenerateModes);
+
+  // Sightline failure: front row obstructs rear row view
+  const hasSightlineRisk = analysis.rows.some((r) => r.sightlineBlocked);
+
+  // Vertical Viewing Angle failure: exceeds 18° CEDIA comfort limit (neck strain)
+  const hasVVARisk = analysis.rows.some((r) => !r.vvaPass);
+
+  // Horizontal Viewing Angle failure: exceeds HDR/SDR limit (eye fatigue / excessive field-of-view)
+  const hasHVARisk = analysis.rows.some((r) => !r.hvaPass);
+
+  const totalRisks =
+    (hasAcousticRisk ? 1 : 0) +
+    (hasSightlineRisk ? 1 : 0) +
+    (hasVVARisk ? 1 : 0) +
+    (hasHVARisk ? 1 : 0);
+
+  return {
+    hasAcousticRisk,
+    hasSightlineRisk,
+    hasVVARisk,
+    hasHVARisk,
+    totalRisks,
+  };
+}
+
 export function generatePDFReport(
   config: ProjectConfig,
   analysis: AnalysisResult,
@@ -475,41 +512,34 @@ export function generatePDFReport(
   } else if (reportType === "client") {
 
     // ---- Task 1: Determine Failure Flags ----
-    const hasAcousticRisk =
-      analysis.roomModes.some((m) => m.intensity >= 0.85) ||
-      !!analysis.hasDegenerateModes;
-
-    const hasSightlineRisk = analysis.rows.some((r) => r.sightlineBlocked);
-
-    const hasVVARisk = analysis.rows.some(
-      (r) => r.overallStatus === "warning" || r.overallStatus === "fail"
-    );
+    const { hasAcousticRisk, hasSightlineRisk, hasVVARisk, hasHVARisk } =
+      evaluateClientSummaryRisks(config, analysis);
 
     // Subtitle for client report
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     doc.text("Pre-Construction Risk Summary", 20, yPos);
-    yPos += 8;
+    yPos += 7;
 
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(120, 120, 120);
     doc.text("This report highlights critical design risks that must be addressed before construction begins.", 20, yPos);
-    yPos += 5;
+    yPos += 4.5;
 
     if (config.hardwareSpec) {
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       doc.text(`Target Hardware Spec: ${config.hardwareSpec}`, 20, yPos);
-      yPos += 5;
+      yPos += 4.5;
     }
 
     // Thin separator under subtitle
     doc.setDrawColor(200, 200, 200);
     doc.line(20, yPos, pageWidth - 20, yPos);
-    yPos += 12;
+    yPos += 8;
 
     const textMaxWidth = pageWidth - 40;
 
@@ -517,38 +547,37 @@ export function generatePDFReport(
     let riskNumber = 1;
 
     // --------------------------------------------------
-    // Risk Block 1: Acoustic "Boom" and Dead Seats
+    // Risk Block 1: Acoustic "Boom" and Dead Seats (Degenerate Modes)
     // --------------------------------------------------
     if (hasAcousticRisk) {
-      // Page-break guard
-      if (yPos > 250) {
+      if (yPos > 245) {
         doc.addPage();
         yPos = 20;
       }
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(239, 68, 68); // red accent for risk title
       doc.text(`Risk ${riskNumber}: Acoustic "Boom" and Dead Seats`, 20, yPos);
-      yPos += 8;
+      yPos += 5.5;
 
-      doc.setFontSize(10);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       const risk1Body = doc.splitTextToSize(
-        "The current physical dimensions of this room will trap low frequencies. This results in muddy dialogue and \"dead spots\" in the primary seating row.",
+        "The current physical dimensions of this room create degenerate axial modes that stack at identical frequencies. This traps low frequencies, resulting in muddy dialogue and \"dead spots\" across primary seating rows.",
         textMaxWidth
       );
       doc.text(risk1Body, 20, yPos);
-      yPos += risk1Body.length * 5 + 4;
+      yPos += risk1Body.length * 4.0 + 2.5;
 
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(34, 120, 60);
       doc.text("Option A:", 25, yPos);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
-      doc.text("Adjust framing now (Minimal cost).", 47, yPos);
-      yPos += 6;
+      doc.text("Adjust framing now before drywall (Minimal cost).", 47, yPos);
+      yPos += 4.0;
 
       doc.setFont("helvetica", "bold");
       doc.setTextColor(180, 80, 20);
@@ -560,12 +589,12 @@ export function generatePDFReport(
         textMaxWidth - 27
       );
       doc.text(optB1, 47, yPos);
-      yPos += optB1.length * 5 + 10;
+      yPos += optB1.length * 4.0 + 5.0;
 
       // Divider
       doc.setDrawColor(220, 220, 220);
       doc.line(20, yPos, pageWidth - 20, yPos);
-      yPos += 10;
+      yPos += 6;
 
       riskNumber++;
     }
@@ -574,48 +603,51 @@ export function generatePDFReport(
     // Risk Block 2: Architectural Geometry & Sightline Failure
     // --------------------------------------------------
     if (hasSightlineRisk) {
-      // Page-break guard
-      if (yPos > 250) {
+      if (yPos > 245) {
         doc.addPage();
         yPos = 20;
       }
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(239, 68, 68);
       doc.text(`Risk ${riskNumber}: Architectural Geometry & Sightline Failure`, 20, yPos);
-      yPos += 8;
+      yPos += 5.5;
 
-      doc.setFontSize(10);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       const risk2Body = doc.splitTextToSize(
-        "The relationship between the screen height and the seating risers creates a visual obstruction for the back row.",
+        "Front-row viewers obstruct the lower portion of the screen for rear seating rows based on current screen height and riser dimensions.",
         textMaxWidth
       );
       doc.text(risk2Body, 20, yPos);
-      yPos += risk2Body.length * 5 + 4;
+      yPos += risk2Body.length * 4.0 + 2.5;
 
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(34, 120, 60);
       doc.text("Option A:", 25, yPos);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       doc.text("Adjust the riser height or screen placement on paper now.", 47, yPos);
-      yPos += 6;
+      yPos += 4.0;
 
       doc.setFont("helvetica", "bold");
       doc.setTextColor(180, 80, 20);
       doc.text("Option B:", 25, yPos);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
-      doc.text("Tear out and rebuild the seating risers post-construction.", 47, yPos);
-      yPos += 10;
+      const optB2 = doc.splitTextToSize(
+        "Tear out and rebuild the seating risers post-construction.",
+        textMaxWidth - 27
+      );
+      doc.text(optB2, 47, yPos);
+      yPos += optB2.length * 4.0 + 5.0;
 
       // Divider
       doc.setDrawColor(220, 220, 220);
       doc.line(20, yPos, pageWidth - 20, yPos);
-      yPos += 10;
+      yPos += 6;
 
       riskNumber++;
     }
@@ -624,61 +656,117 @@ export function generatePDFReport(
     // Risk Block 3: Viewing Fatigue & Neck Strain (VVA)
     // --------------------------------------------------
     if (hasVVARisk) {
-      // Page-break guard
-      if (yPos > 250) {
+      if (yPos > 245) {
         doc.addPage();
         yPos = 20;
       }
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(239, 68, 68);
       doc.text(`Risk ${riskNumber}: Viewing Fatigue & Neck Strain`, 20, yPos);
-      yPos += 8;
+      yPos += 5.5;
 
-      doc.setFontSize(10);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       const risk3Body = doc.splitTextToSize(
-        "The planned seating distances and screen height force viewers to look up at an unnatural angle, causing physical discomfort over a 2-hour movie.",
+        "The planned seating distances and screen height force viewers to look up at an unnatural angle exceeding the 18° CEDIA comfort limit, causing physical discomfort over a 2-hour movie.",
         textMaxWidth
       );
       doc.text(risk3Body, 20, yPos);
-      yPos += risk3Body.length * 5 + 4;
+      yPos += risk3Body.length * 4.0 + 2.5;
 
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(34, 120, 60);
       doc.text("Option A:", 25, yPos);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       doc.text("Lower the screen or increase seating distance now.", 47, yPos);
-      yPos += 6;
+      yPos += 4.0;
 
       doc.setFont("helvetica", "bold");
       doc.setTextColor(180, 80, 20);
       doc.text("Option B:", 25, yPos);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
-      doc.text("Accept severe client discomfort and complaints.", 47, yPos);
-      yPos += 10;
+      const optB3 = doc.splitTextToSize(
+        "Accept severe client discomfort and complaints.",
+        textMaxWidth - 27
+      );
+      doc.text(optB3, 47, yPos);
+      yPos += optB3.length * 4.0 + 5.0;
 
       // Divider
       doc.setDrawColor(220, 220, 220);
       doc.line(20, yPos, pageWidth - 20, yPos);
-      yPos += 10;
+      yPos += 6;
+
+      riskNumber++;
+    }
+
+    // --------------------------------------------------
+    // Risk Block 4: Viewing Fatigue & Oversized Screen Field-of-View (HVA)
+    // --------------------------------------------------
+    if (hasHVARisk) {
+      if (yPos > 245) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(239, 68, 68);
+      doc.text(`Risk ${riskNumber}: Viewing Fatigue & Oversized Screen Field-of-View`, 20, yPos);
+      yPos += 5.5;
+
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      const risk4Body = doc.splitTextToSize(
+        `The screen is too wide for the planned seating distance, exceeding the ${config.contentStandard} horizontal viewing angle limit and causing eye strain and excessive head-turning.`,
+        textMaxWidth
+      );
+      doc.text(risk4Body, 20, yPos);
+      yPos += risk4Body.length * 4.0 + 2.5;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(34, 120, 60);
+      doc.text("Option A:", 25, yPos);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text("Reduce screen size or push seating back now.", 47, yPos);
+      yPos += 4.0;
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(180, 80, 20);
+      doc.text("Option B:", 25, yPos);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      const optB4 = doc.splitTextToSize(
+        "Accept viewer eye fatigue and sub-standard image comfort.",
+        textMaxWidth - 27
+      );
+      doc.text(optB4, 47, yPos);
+      yPos += optB4.length * 4.0 + 5.0;
+
+      // Divider
+      doc.setDrawColor(220, 220, 220);
+      doc.line(20, yPos, pageWidth - 20, yPos);
+      yPos += 6;
 
       riskNumber++;
     }
 
     // ---- Task 3: The "All Clear" State ----
-    if (!hasAcousticRisk && !hasSightlineRisk && !hasVVARisk) {
-      doc.setFontSize(16);
+    if (!hasAcousticRisk && !hasSightlineRisk && !hasVVARisk && !hasHVARisk) {
+      doc.setFontSize(15);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(34, 197, 94); // green
       doc.text("Design Validation: Approved", 20, yPos);
-      yPos += 10;
+      yPos += 8;
 
-      doc.setFontSize(11);
+      doc.setFontSize(9.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
       const allClearBody = doc.splitTextToSize(
@@ -686,26 +774,24 @@ export function generatePDFReport(
         textMaxWidth
       );
       doc.text(allClearBody, 20, yPos);
-      yPos += allClearBody.length * 6 + 14;
+      yPos += allClearBody.length * 5 + 8;
     }
 
     // --------------------------------------------------
     // Call to Action (always rendered)
     // --------------------------------------------------
-    // Page-break guard before CTA
-    if (yPos > 250) {
+    if (yPos > 248) {
       doc.addPage();
       yPos = 20;
     }
 
-    // Separator above CTA
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.5);
     doc.line(20, yPos, pageWidth - 20, yPos);
     doc.setLineWidth(0.2); // reset
-    yPos += 10;
+    yPos += 7;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
     const ctaText = doc.splitTextToSize(
