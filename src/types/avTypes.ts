@@ -79,4 +79,5 @@ export interface AnalysisResult {
   certification: "CEDIA Compliant" | "Acceptable" | "Requires Revision";
   rt60Analysis: RT60Analysis;
   treatmentPrescriptions: TreatmentPrescription[];
+  hasDegenerateModes?: boolean;
 }

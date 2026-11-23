@@ -115,7 +115,9 @@ function calculateRT60(
   // Sabine formula: RT60 = 0.049 * V / A (where A = total absorption)
   // A = surface area * absorption coefficient
   const totalAbsorption = totalSurface * avgAlpha;
-  const untreatedRT60 = (0.049 * volume) / totalAbsorption;
+  // Guard against division by zero if room dimensions produce zero absorption
+  const safeAbsorption = Math.max(totalAbsorption, 0.001);
+  const untreatedRT60 = (0.049 * volume) / safeAbsorption;
   
   // Calculate coverage required to reach target using standard Sabine formula
   // Required_Sabins = (0.049 * Volume) / Target_RT60
@@ -166,7 +168,9 @@ export function calculateVerticalViewingAngle(
   viewerEarHeight: number, // inches from floor
   distanceFromScreen: number // feet
 ): { toTop: number; toBottom: number; total: number } {
-  const distanceInches = distanceFromScreen * 12;
+  // Guard against division by zero when distance is 0
+  const safeDistance = Math.max(distanceFromScreen, 0.1);
+  const distanceInches = safeDistance * 12;
   const screenTop = screenBottomEdge + screenHeight;
   const screenCenter = screenBottomEdge + screenHeight / 2;
 
@@ -187,10 +191,12 @@ export function calculateHorizontalViewingAngle(
   screenWidthInches: number,
   distanceFromScreenFeet: number
 ): number {
-  const distanceInches = distanceFromScreenFeet * 12;
-  // Full viewing angle from edge to edge
-  const halfAngle = Math.atan((screenWidthInches / 2) / distanceInches) * (180 / Math.PI);
-  return halfAngle * 2;
+  // Guard against division by zero when distance is 0
+  const safeDistance = Math.max(distanceFromScreenFeet, 0.1);
+  const distanceInches = safeDistance * 12;
+  // Full viewing angle from edge to edge:
+  // HVA = 2 * atan((screenWidthInches / 2) / distanceInches) * (180 / Math.PI)
+  return 2 * Math.atan((screenWidthInches / 2) / distanceInches) * (180 / Math.PI);
 }
 
 export function checkSightline(
@@ -224,7 +230,9 @@ export function checkSightline(
   
   // Calculate obstruction height (negative clearance = obstruction)
   const obstructionHeight = Math.abs(clearance);
-  const viewingDistanceInches = viewingDistanceFeet * 12;
+  // Guard against division by zero when distance is 0
+  const safeDistance = Math.max(viewingDistanceFeet, 0.1);
+  const viewingDistanceInches = safeDistance * 12;
   
   // Calculate obstruction angle: atan(ObstructionHeight / ViewingDistance)
   const obstructionAngle = Math.atan(obstructionHeight / viewingDistanceInches) * (180 / Math.PI);
@@ -362,7 +370,7 @@ export function analyzeRow(
 
   // HVA limits: 45° for SDR, 40° for HDR
   const hvaLimit = config.contentStandard === "HDR" ? 40 : 45;
-  const hvaPass = hva / 2 <= hvaLimit; // Half angle to edge
+  const hvaPass = hva <= hvaLimit;
 
   // Sightline check with tolerance based on masking config
   let sightlineBlocked = false;
@@ -391,7 +399,7 @@ export function analyzeRow(
 
   if (!hvaPass) {
     notes.push(
-      `Horizontal viewing angle ${(hva / 2).toFixed(1)}° exceeds ${hvaLimit}° ${config.contentStandard} limit`
+      `Horizontal viewing angle ${hva.toFixed(1)}° exceeds ${hvaLimit}° ${config.contentStandard} limit`
     );
   }
 
@@ -408,15 +416,13 @@ export function analyzeRow(
   // Determine overall status using consultant logic
   let overallStatus: RowAnalysis["overallStatus"];
   
-  if (sightlineStatus === "fail") {
+  if (sightlineStatus === "fail" || !vvaPass || !hvaPass) {
     overallStatus = "fail";
-  } else if (vvaStatus === "warning" || !hvaPass) {
-    overallStatus = "warning";
   } else if (sightlineStatus === "warning") {
     overallStatus = "warning";
   } else if (sightlineStatus === "acceptable" || vvaStatus === "marginal") {
     overallStatus = "acceptable";
-  } else if (vva.toTop <= 12 && vva.toBottom <= 12 && hva / 2 <= hvaLimit - 5) {
+  } else if (vva.toTop <= 12 && vva.toBottom <= 12 && hva <= hvaLimit) {
     overallStatus = "optimal";
   } else {
     overallStatus = "acceptable";
@@ -426,7 +432,7 @@ export function analyzeRow(
     rowId: row.id,
     distFromScreen: row.distFromScreen,
     verticalViewingAngle: Math.max(vva.toTop, vva.toBottom),
-    horizontalViewingAngle: hva / 2,
+    horizontalViewingAngle: hva,
     vvaPass,
     hvaPass,
     sightlineBlocked: sightlineStatus === "fail",
@@ -510,38 +516,72 @@ export function analyzeProject(config: ProjectConfig): AnalysisResult {
       index === self.findIndex(t => t.type === treatment.type)
     );
 
+  // Detect overlapping / degenerate axial room modes (e.g. square room or integer ratios)
+  const isSquareRoom = Math.abs(config.room.length - config.room.width) < 0.1;
+  const isCubeRoom = isSquareRoom && Math.abs(config.room.length - config.room.height) < 0.1;
+
+  const dimRatios = [
+    config.room.length / config.room.width,
+    config.room.width / config.room.length,
+    config.room.length / config.room.height,
+    config.room.height / config.room.length,
+    config.room.width / config.room.height,
+    config.room.height / config.room.width,
+  ];
+  const hasIntegerRatio = dimRatios.some(
+    (r) => r >= 1.95 && Math.abs(r - Math.round(r)) < 0.05
+  );
+
+  let coincidentModeCount = 0;
+  for (let i = 0; i < roomModes.length; i++) {
+    for (let j = i + 1; j < roomModes.length; j++) {
+      const axisA = roomModes[i].axis.split(" ")[0];
+      const axisB = roomModes[j].axis.split(" ")[0];
+      if (axisA !== axisB && Math.abs(roomModes[i].frequency - roomModes[j].frequency) < 0.5) {
+        coincidentModeCount++;
+      }
+    }
+  }
+
+  const hasDegenerateModes = isSquareRoom || isCubeRoom || hasIntegerRatio || coincidentModeCount > 0;
+
   // Softer language: drywall is "standard residential", not a warning
   const bassLeakageWarning = config.wallConstruction === "drywall";
   const wallDampingFactor = WALL_DAMPING_FACTORS[config.wallConstruction];
 
-  // Calculate overall score with softer thresholds
+  // Calculate overall score
   const optimalCount = rowAnalyses.filter(r => r.overallStatus === "optimal").length;
   const acceptableCount = rowAnalyses.filter(r => r.overallStatus === "acceptable").length;
   const failCount = rowAnalyses.filter(r => r.overallStatus === "fail").length;
   const warningCount = rowAnalyses.filter(r => r.overallStatus === "warning").length;
 
-  // Use the screenCheck already computed above
-
-  // Consultant-grade scoring: more generous
   let overallScore = 100;
   
   // Critical failure if screen doesn't fit room
   if (!screenCheck.fits) {
     overallScore = 0;
   } else {
-    overallScore -= failCount * 25; // Was 30, now 25
-    overallScore -= warningCount * 8; // Was 10, now 8
+    overallScore -= failCount * 25;
+    overallScore -= warningCount * 8;
+    
+    // Meaningfully penalize overlapping / degenerate axial room modes
+    if (hasDegenerateModes) {
+      const modalPenalty = isSquareRoom || isCubeRoom ? 25 : 15;
+      const stackPenalty = Math.min(25, coincidentModeCount * 5);
+      overallScore -= Math.max(modalPenalty, stackPenalty);
+    }
+
     // Drywall is standard residential, minor deduction only
-    if (bassLeakageWarning) overallScore -= 2; // Was 5, now 2
+    if (bassLeakageWarning) overallScore -= 2;
     // Bonus for optimal rows
     overallScore += optimalCount * 2;
   }
   overallScore = Math.min(100, Math.max(0, overallScore));
 
   let certification: AnalysisResult["certification"];
-  if (!screenCheck.fits || failCount > 0) {
+  if (!screenCheck.fits || failCount > 0 || hasDegenerateModes || overallScore < 70) {
     certification = "Requires Revision";
-  } else if (warningCount > 0 || overallScore < 80) { // Was 85, now 80
+  } else if (warningCount > 0 || overallScore < 90) {
     certification = "Acceptable";
   } else {
     certification = "CEDIA Compliant";
@@ -556,5 +596,6 @@ export function analyzeProject(config: ProjectConfig): AnalysisResult {
     certification,
     rt60Analysis,
     treatmentPrescriptions,
+    hasDegenerateModes,
   };
 }

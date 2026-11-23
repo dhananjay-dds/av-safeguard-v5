@@ -475,7 +475,9 @@ export function generatePDFReport(
   } else if (reportType === "client") {
 
     // ---- Task 1: Determine Failure Flags ----
-    const hasAcousticRisk = analysis.roomModes.some((m) => m.intensity >= 0.85);
+    const hasAcousticRisk =
+      analysis.roomModes.some((m) => m.intensity >= 0.85) ||
+      !!analysis.hasDegenerateModes;
 
     const hasSightlineRisk = analysis.rows.some((r) => r.sightlineBlocked);
 
